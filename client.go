@@ -20,8 +20,9 @@ type Client interface {
 }
 
 type client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL     string
+	httpClient  *http.Client
+	middlewares []Middleware
 }
 
 func (c *client) Get(url string) (*Response, error) {
@@ -42,7 +43,11 @@ func (c *client) execute(ctx context.Context, url, method string, body io.Reader
 	if err != nil {
 		return nil, fmt.Errorf("failed to make http request: %v", err)
 	}
-
+	for _, middleware := range c.middlewares {
+		if err := middleware(req); err != nil {
+			return nil, fmt.Errorf("middleware error: %v", err)
+		}
+	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to do http request: %v", err)

@@ -1,6 +1,10 @@
 package reqwest
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -159,6 +163,144 @@ func TestClientBuilder_EdgeCases(t *testing.T) {
 		builder := NewClientBuilder().WithBaseURL(unicodeURL)
 		if builder.baseURL != expected {
 			t.Errorf("Unicode URL handling failed: got %q, want %q", builder.baseURL, expected)
+		}
+	})
+}
+
+func TestClientBuilder_WithMiddleware(t *testing.T) {
+	t.Run("One middleware", func(t *testing.T) {
+		cameInsideMiddleware := false
+		middleware := func(req *http.Request) error {
+			cameInsideMiddleware = true
+			req.Header.Add("Testing-Key", "Testing-Value")
+			return nil
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Testing-Key") != "Testing-Value" {
+				t.Errorf("Expected header Testing-Key=Testing-Value, got %s",
+					r.Header.Get("Testing-Key"))
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := NewClientBuilder().WithMiddleware(middleware).Build()
+
+		_, err := client.Get(server.URL)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !cameInsideMiddleware {
+			t.Error("Middleware not executed, when it should have been")
+		}
+	})
+
+	t.Run("Multiple middlewares", func(t *testing.T) {
+		var execution []string
+
+		middleware1 := func(req *http.Request) error {
+			execution = append(execution, "middleware1")
+			req.Header.Set("M1", "M1-Value")
+			return nil
+		}
+
+		middleware2 := func(req *http.Request) error {
+			execution = append(execution, "middleware2")
+			req.Header.Set("M2", "M2-Value")
+			return nil
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("M1") != "M1-Value" {
+				t.Errorf("Expected header M1=M1-Value, got %s", r.Header.Get("M1"))
+			}
+			if r.Header.Get("M2") != "M2-Value" {
+				t.Errorf("Expected header M2=M2-Value, got %s",
+					r.Header.Get("M2"))
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := NewClientBuilder().
+			WithMiddleware(middleware1).
+			WithMiddleware(middleware2).
+			Build()
+
+		_, err := client.Get(server.URL)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		expectedExecution := []string{"middleware1", "middleware2"}
+		if len(execution) != len(expectedExecution) {
+			t.Fatalf("Expected %d middleware executions, got %d",
+				len(expectedExecution), len(execution))
+		}
+		for i, expected := range expectedExecution {
+			if execution[i] != expected {
+				t.Errorf("Expected execution[%d]=%s, got %s", i, expected, execution[i])
+			}
+		}
+	})
+
+	t.Run("Middleware with error", func(t *testing.T) {
+		errorMiddleware := func(req *http.Request) error {
+			return fmt.Errorf("middleware failed")
+		}
+
+		client := NewClientBuilder().
+			WithMiddleware(errorMiddleware).
+			Build()
+
+		_, err := client.Get("http://example.com")
+		if err == nil {
+			t.Error("Expected error from middleware, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "middleware error") {
+			t.Errorf("Expected error to contain 'middleware error', got: %v", err)
+		}
+	})
+
+	t.Run("Multiple Clients", func(t *testing.T) {
+		var client1Headers, client2Headers []string
+
+		middleware1 := func(req *http.Request) error {
+			client1Headers = append(client1Headers, "client1")
+			req.Header.Set("X-Client", "client1")
+			return nil
+		}
+
+		middleware2 := func(req *http.Request) error {
+			client2Headers = append(client2Headers, "client2")
+			req.Header.Set("X-Client", "client2")
+			return nil
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client1 := NewClientBuilder().WithMiddleware(middleware1).Build()
+		client2 := NewClientBuilder().WithMiddleware(middleware2).Build()
+
+		_, err1 := client1.Get(server.URL)
+		_, err2 := client2.Get(server.URL)
+
+		if err1 != nil || err2 != nil {
+			t.Fatalf("Unexpected errors: %v, %v", err1, err2)
+		}
+
+		if len(client1Headers) != 1 || client1Headers[0] != "client1" {
+			t.Errorf("Client1 middleware not executed correctly: %v", client1Headers)
+		}
+
+		if len(client2Headers) != 1 || client2Headers[0] != "client2" {
+			t.Errorf("Client2 middleware not executed correctly: %v", client2Headers)
 		}
 	})
 }
