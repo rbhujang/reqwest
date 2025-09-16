@@ -1,7 +1,7 @@
 # reqwest
 
 [![Go Version](https://img.shields.io/badge/Go-1.23.4-blue.svg)](https://golang.org/)
-[![Coverage](https://img.shields.io/badge/Coverage-96.6%25-green.svg)](coverage.html)
+[![Coverage](https://img.shields.io/badge/Coverage-97.1%25-green.svg)](coverage.html)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A simple and elegant HTTP client library for Go
@@ -33,21 +33,21 @@ package main
 import (
     "fmt"
     "io"
-    
+
     "github.com/rbhujang/reqwest"
 )
 
 func main() {
     // Create a client
     client := reqwest.NewClientBuilder().Build()
-    
+
     // Make a GET request
     resp, err := client.Get("https://api.github.com/users/octocat")
     if err != nil {
         panic(err)
     }
     defer resp.Body().Close()
-    
+
     // Read response
     body, _ := io.ReadAll(resp.Body())
     fmt.Printf("Status: %d\n", resp.StatusCode())
@@ -88,28 +88,35 @@ fmt.Printf("Status: %d\n", resp.StatusCode())
 ### ClientBuilder
 
 #### `NewClientBuilder() *ClientBuilder`
+
 Creates a new client builder.
 
 #### `WithBaseURL(url string) *ClientBuilder`
+
 Sets the base URL for the client. Trailing slashes are automatically trimmed.
 
 #### `Build() Client`
+
 Builds and returns the configured client.
 
 ### Client
 
 #### `Get(url string) (*Response, error)`
+
 Performs a GET request to the specified URL.
 
 #### `Post(url string, body []byte) (*Response, error)`
+
 Performs a POST request to the specified URL with the given body.
 
 ### Response
 
 #### `StatusCode() int`
+
 Returns the HTTP status code of the response.
 
 #### `Body() io.ReadCloser`
+
 Returns the response body as a ReadCloser. Remember to close it when done.
 
 ## URL Handling
