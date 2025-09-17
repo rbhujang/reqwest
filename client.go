@@ -15,8 +15,8 @@ const (
 )
 
 type Client interface {
-	Get(url string) (*Response, error)
-	Post(url string, body []byte) (*Response, error)
+	Get(ctx context.Context, url string) (*Response, error)
+	Post(ctx context.Context, url string, body []byte) (*Response, error)
 }
 
 type client struct {
@@ -25,15 +25,11 @@ type client struct {
 	middlewares []Middleware
 }
 
-func (c *client) Get(url string) (*Response, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), DefaultClientTimeout)
-	defer cancel()
+func (c *client) Get(ctx context.Context, url string) (*Response, error) {
 	return c.execute(ctx, url, http.MethodGet, nil)
 }
 
-func (c *client) Post(url string, body []byte) (*Response, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), DefaultClientTimeout)
-	defer cancel()
+func (c *client) Post(ctx context.Context, url string, body []byte) (*Response, error) {
 	return c.execute(ctx, url, http.MethodPost, bytes.NewBuffer(body))
 }
 
