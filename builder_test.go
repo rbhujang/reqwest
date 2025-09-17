@@ -1,6 +1,7 @@
 package reqwest
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -103,7 +104,6 @@ func TestClientBuilder_WithBaseURL_MultipleChaining(t *testing.T) {
 }
 
 func TestClientBuilder_Build(t *testing.T) {
-
 	t.Run("Build preserves builder state", func(t *testing.T) {
 		builder := NewClientBuilder().WithBaseURL("https://api.example.com")
 
@@ -176,18 +176,19 @@ func TestClientBuilder_WithMiddleware(t *testing.T) {
 			return nil
 		}
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Testing-Key") != "Testing-Value" {
-				t.Errorf("Expected header Testing-Key=Testing-Value, got %s",
-					r.Header.Get("Testing-Key"))
-			}
-			w.WriteHeader(http.StatusOK)
-		}))
+		server := httptest.NewServer(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Testing-Key") != "Testing-Value" {
+					t.Errorf("Expected header Testing-Key=Testing-Value, got %s",
+						r.Header.Get("Testing-Key"))
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
 		defer server.Close()
 
 		client := NewClientBuilder().WithMiddleware(middleware).Build()
 
-		_, err := client.Get(server.URL)
+		_, err := client.Get(context.TODO(), server.URL)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -229,7 +230,7 @@ func TestClientBuilder_WithMiddleware(t *testing.T) {
 			WithMiddleware(middleware2).
 			Build()
 
-		_, err := client.Get(server.URL)
+		_, err := client.Get(context.TODO(), server.URL)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -255,7 +256,7 @@ func TestClientBuilder_WithMiddleware(t *testing.T) {
 			WithMiddleware(errorMiddleware).
 			Build()
 
-		_, err := client.Get("http://example.com")
+		_, err := client.Get(context.TODO(), "http://example.com")
 		if err == nil {
 			t.Error("Expected error from middleware, got nil")
 		}
@@ -288,8 +289,8 @@ func TestClientBuilder_WithMiddleware(t *testing.T) {
 		client1 := NewClientBuilder().WithMiddleware(middleware1).Build()
 		client2 := NewClientBuilder().WithMiddleware(middleware2).Build()
 
-		_, err1 := client1.Get(server.URL)
-		_, err2 := client2.Get(server.URL)
+		_, err1 := client1.Get(context.TODO(), server.URL)
+		_, err2 := client2.Get(context.TODO(), server.URL)
 
 		if err1 != nil || err2 != nil {
 			t.Fatalf("Unexpected errors: %v, %v", err1, err2)

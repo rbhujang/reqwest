@@ -1,6 +1,7 @@
 package reqwest
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func TestClient_Get(t *testing.T) {
 		defer server.Close()
 
 		client := NewClientBuilder().Build()
-		resp, err := client.Get(server.URL)
+		resp, err := client.Get(context.TODO(), server.URL)
 
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -44,7 +45,7 @@ func TestClient_Get(t *testing.T) {
 
 	t.Run("GET request with error", func(t *testing.T) {
 		client := NewClientBuilder().Build()
-		_, err := client.Get("http://localhost:1")
+		_, err := client.Get(context.TODO(), "http://localhost:1")
 
 		if err == nil {
 			t.Error("Expected error for unreachable URL, got nil")
@@ -75,7 +76,7 @@ func TestClient_Post(t *testing.T) {
 		defer server.Close()
 
 		client := NewClientBuilder().Build()
-		resp, err := client.Post(server.URL, []byte(expectedBody))
+		resp, err := client.Post(context.TODO(), server.URL, []byte(expectedBody))
 
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -112,7 +113,7 @@ func TestClient_Post(t *testing.T) {
 		defer server.Close()
 
 		client := NewClientBuilder().Build()
-		resp, err := client.Post(server.URL, []byte{})
+		resp, err := client.Post(context.TODO(), server.URL, []byte{})
 
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -194,7 +195,7 @@ func TestClient_WithBaseURL(t *testing.T) {
 			WithBaseURL(server.URL + "/api").
 			Build()
 
-		resp, err := client.Get("/users")
+		resp, err := client.Get(context.TODO(), "/users")
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -209,13 +210,15 @@ func TestClient_WithBaseURL(t *testing.T) {
 func TestClient_Timeout(t *testing.T) {
 	t.Run("Request should timeout", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(DefaultClientTimeout + time.Second)
+			time.Sleep(2 + time.Second)
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
 
 		client := NewClientBuilder().Build()
-		_, err := client.Get(server.URL)
+		ctx, cancel := context.WithTimeout(context.TODO(), 500*time.Millisecond)
+		defer cancel()
+		_, err := client.Get(ctx, server.URL)
 
 		if err == nil {
 			t.Error("Expected timeout error, got nil")
@@ -223,6 +226,53 @@ func TestClient_Timeout(t *testing.T) {
 
 		if !strings.Contains(err.Error(), "context deadline exceeded") {
 			t.Errorf("Expected timeout error, got: %v", err)
+		}
+	})
+}
+
+func TestClient_ContextCancel(t *testing.T) {
+	t.Run("Should cancel", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(2 * time.Second)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := NewClientBuilder().Build()
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err := client.Get(ctx, server.URL)
+
+		if err == nil {
+			t.Error("Expected cancellation error, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "context canceled") {
+			t.Errorf("Expected context canceled error, got: %v", err)
+		}
+	})
+}
+func TestClient_NoTimeout(t *testing.T) {
+	t.Run("Request without timeout should succeed", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(100 * time.Millisecond) // Short delay
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := NewClientBuilder().Build()
+
+		// No timeout set
+		_, err := client.Get(context.Background(), server.URL)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
 		}
 	})
 }

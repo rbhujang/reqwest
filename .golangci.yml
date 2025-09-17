@@ -63,6 +63,7 @@ issues:
         - gomnd
         - lll
         - dupl
+        - gocyclo
     - path: client\.go
       text: "response body must be closed"
       linters:
