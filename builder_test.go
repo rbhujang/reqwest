@@ -305,3 +305,65 @@ func TestClientBuilder_WithMiddleware(t *testing.T) {
 		}
 	})
 }
+
+func TestClientBuilder_WithRetryConfig(t *testing.T) {
+	t.Run("custom retry config", func(t *testing.T) {
+		retryConfig := NewRetryConfigBuilder().
+			WithMaxRetries(5).
+			WithRetryableStatusCodes([]int{500, 503}).
+			Build()
+
+		builder := NewClientBuilder().WithRetryConfig(retryConfig)
+
+		if builder.retryConfig != retryConfig {
+			t.Error("WithRetryConfig() did not set the retry config correctly")
+		}
+
+		cli := builder.Build()
+		clientImpl := cli.(*client)
+
+		if clientImpl.retryConfig != retryConfig {
+			t.Error("Build() did not pass retry config to client correctly")
+		}
+	})
+
+	t.Run("nil retry config", func(t *testing.T) {
+		builder := NewClientBuilder().WithRetryConfig(nil)
+
+		if builder.retryConfig != nil {
+			t.Error("WithRetryConfig(nil) should set retryConfig to nil")
+		}
+
+		cli := builder.Build()
+		clientImpl := cli.(*client)
+
+		if clientImpl.retryConfig != nil {
+			t.Error("Build() should pass nil retry config to client")
+		}
+	})
+
+	t.Run("retry config chaining", func(t *testing.T) {
+		retryConfig := NewRetryConfigBuilder().WithMaxRetries(3).Build()
+
+		builder := NewClientBuilder()
+		result := builder.WithRetryConfig(retryConfig)
+
+		if result != builder {
+			t.Error("WithRetryConfig() should return the same builder instance for chaining")
+		}
+	})
+
+	t.Run("overrides previous retry config", func(t *testing.T) {
+		customConfig := NewRetryConfigBuilder().WithMaxRetries(10).Build()
+
+		builder := NewClientBuilder().
+			WithRetryConfig(customConfig).
+			WithRetries()
+
+		// WithRetries() should override the custom config
+		if builder.retryConfig.maxRetries != DefaultMaxRetries {
+			t.Errorf("WithRetries() should override custom config, expected %d retries, got %d",
+				DefaultMaxRetries, builder.retryConfig.maxRetries)
+		}
+	})
+}

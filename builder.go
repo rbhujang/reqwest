@@ -8,6 +8,7 @@ import (
 type ClientBuilder struct {
 	baseURL     string
 	middlewares []Middleware
+	retryConfig *RetryConfig
 }
 
 func NewClientBuilder() *ClientBuilder {
@@ -26,10 +27,21 @@ func (cb *ClientBuilder) WithMiddleware(middleware Middleware) *ClientBuilder {
 	return cb
 }
 
+func (cb *ClientBuilder) WithRetryConfig(config *RetryConfig) *ClientBuilder {
+	cb.retryConfig = config
+	return cb
+}
+
+func (cb *ClientBuilder) WithRetries() *ClientBuilder {
+	cb.retryConfig = NewRetryConfigBuilder().Build()
+	return cb
+}
+
 func (cb *ClientBuilder) Build() Client {
 	c := &client{
 		httpClient:  http.DefaultClient,
 		middlewares: make([]Middleware, len(cb.middlewares)),
+		retryConfig: cb.retryConfig,
 	}
 	if cb.baseURL != "" {
 		c.baseURL = cb.baseURL

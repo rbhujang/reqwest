@@ -3,11 +3,14 @@ package reqwest
 import (
 	"io"
 	"net/http"
+	"time"
 )
 
 type Response struct {
-	statusCode int
-	body       io.ReadCloser
+	statusCode    int
+	body          io.ReadCloser
+	retryAttempts int
+	totalDuration time.Duration
 }
 
 func fromHTTPResponse(resp *http.Response) *Response {
@@ -23,4 +26,12 @@ func (r *Response) StatusCode() int {
 
 func (r *Response) Body() io.ReadCloser {
 	return r.body
+}
+
+func (r *Response) RetryAttempts() int {
+	return r.retryAttempts
+}
+
+func (r *Response) TotalDuration() time.Duration {
+	return r.totalDuration
 }
